@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Blockoria</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;margin:0;overflow:hidden}
+body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;height:100dvh;font-family:Arial}
+#gameWrap{position:relative;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;overflow:hidden;background:#87ceeb}
+canvas{display:block;width:100%;height:100%}
+#fullscreenBtn{position:absolute;z-index:20;top:58px;right:10px;pointer-events:auto;border:1px solid #ffffff99;border-radius:9px;padding:7px 10px;color:#fff;background:#172b36bb;font-size:13px}
+#fullscreenBtn:active{transform:scale(.95)}
+
+@media(orientation:landscape){
+#controls{padding:8px 18px max(8px,env(safe-area-inset-bottom))}
+#inventory{bottom:12px;left:50%;transform:translateX(-50%)}
+#joystick-area{width:116px;height:116px}
+#joystick-base{transform:scale(.92);transform-origin:top left}
+#joystick-knob{transform-origin:top left}
+}
+
+#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#hud{position:absolute;top:10px;left:10px;display:flex;gap:5px}
+.heart{font-size:22px}
+#score{position:absolute;top:10px;right:10px;font-size:14px;font-weight:bold;color:white;text-shadow:1px 1px 3px #000}
+#controls{position:absolute;bottom:0;left:0;width:100%;display:flex;justify-content:space-between;align-items:flex-end;padding:14px;pointer-events:all}
+#joystick-area{width:130px;height:130px;position:relative}
+#joystick-base{width:120px;height:120px;border-radius:50%;background:rgba(25,25,25,.48);border:3px solid rgba(255,255,255,.48);position:absolute;top:5px;left:5px;box-shadow:inset 0 0 12px #0006,0 3px 12px #0004}
+#joystick-base:before{content:"▲";position:absolute;top:7px;left:50%;transform:translateX(-50%);color:#ffffffb3;font-size:17px}
+#joystick-base:after{content:"◀       ▶";position:absolute;left:0;right:0;top:47px;text-align:center;color:#ffffffb3;font-size:17px}
+#joystick-knob{width:52px;height:52px;border-radius:50%;background:linear-gradient(145deg,#ebebf5e6,#828796e0);border:3px solid #fffffff0;position:absolute;top:39px;left:39px;box-shadow:0 3px 10px #0007,inset 0 2px 5px #ffffff99}
+#action-btns{display:flex;flex-direction:row;gap:12px;align-items:flex-end;padding-bottom:5px}
+.action-btn{width:68px;height:68px;border-radius:50%;border:3px solid #ffffffd1;font-size:29px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px #0008,inset 0 2px 5px #ffffff38}
+.action-btn:active{transform:scale(.91);filter:brightness(1.2)}
+#btn-dig{background:linear-gradient(145deg,#ae7030,#5b3113)}
+#btn-place{background:linear-gradient(145deg,#4ab141,#185e23)}
+
+#inventory{position:absolute;bottom:158px;left:50%;transform:translateX(-50%);display:flex;gap:5px;pointer-events:all;background:rgba(0,0,0,.45);padding:6px 8px;border-radius:12px;border:1.5px solid rgba(255,255,255,.25)}
+.inv-slot{width:46px;height:46px;border-radius:8px;border:2px solid rgba(255,255,255,.3);background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer}
+.inv-slot.active{border-color:white;background:#ffffff40}
+
+#gameover{position:absolute;top:0;left:0;width:100%;height:100%;background:#000c;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;pointer-events:all}
+#gameover h2{color:#ff4444;font-size:28px}
+#gameover p{color:#ccc;font-size:15px}
+#final-score{color:#ffd700;font-size:18px;font-weight:bold}
+#btn-restart{padding:12px 32px;border-radius:10px;background:#2d8c4e;color:white;border:none;font-size:16px}
+#msg{position:absolute;top:48px;left:50%;transform:translateX(-50%);background:#000a;color:white;padding:5px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .3s;white-space:nowrap}
+</style>
+</head>
+
+<body>
+<div id="gameWrap">
+<canvas id="gameCanvas"></canvas>
+
+<div id="ui">
+
+<button id="fullscreenBtn" type="button">⛶ ملء الشاشة + أفقي</button>
+
+<div id="hud"></div>
+<div id="score">⛏️ 0</div>
+<div id="msg"></div>
+
+<div id="inventory">
+<div class="inv-slot active" data-block="grass">🌿</div>
+<div class="inv-slot" data-block="dirt">🟫</div>
+<div class="inv-slot" data-block="wood">🪵</div>
+<div class="inv-slot" data-block="stone">🪨</div>
+</div>
+
+<div id="controls">
+<div id="joystick-area">
+<div id="joystick-base"></div>
+<div id="joystick-knob"></div>
+</div>
+
+<div id="action-btns">
+<div class="action-btn" id="btn-dig">⛏️</div>
+<div class="action-btn" id="btn-place">🧱</div>
+</div>
+</div>
+
+<div id="gameover">
+<h2>💀 مت!</h2>
+<p>الزومبي هزمك</p>
+<div id="final-score">نقاط: 0</div>
+<button id="btn-restart">🔄 العب مجدداً</button>
+</div>
+
+</div>
+</div>
+
+<script>
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const wrap=document.getElementById('gameWrap');
+
+const fullscreenBtn=document.getElementById('fullscreenBtn');
+
+fullscreenBtn.addEventListener('click',async function(){
+try{
+if(!document.fullscreenElement){
+const enter=wrap.requestFullscreen||wrap.webkitRequestFullscreen;
+if(enter)await enter.call(wrap);
+}
+
+if(screen.orientation&&screen.orientation.lock){
+try{
+await screen.orientation.lock('landscape');
+}catch(e){
+showMsg('أدر الهاتف أفقياً إذا لم يتغير الاتجاه');
+}
+}else{
+showMsg('أدر الهاتف أفقياً يدوياً');
+}
+}catch(e){
+showMsg('اضغط مرة أخرى للسماح بملء الشاشة');
+}
+});
+
+document.addEventListener('fullscreenchange',function(){
+fullscreenBtn.style.display=document.fullscreenElement?'none':'block';
+setTimeout(resize,100);
+});
+
+window.addEventListener('orientationchange',function(){
+setTimeout(resize,200);
+});
+
+function resize(){
+canvas.width=wrap.clientWidth;
+canvas.height=wrap.clientHeight;
+}
+
+resize();
+window.addEventListener('resize',resize);
+
+const TS=34;
+let W,H;
+
+function updateDims(){
+W=canvas.width;
+H=canvas.height;
+}
+
+updateDims();
+
+const BLOCK_EMOJI={
+grass:'🌿',
+dirt:'🟫',
+wood:'🪵',
+stone:'🪨'
+};
+
+let world=[],entities=[];
+let player,cam,hp,score,selectedBlock,gameRunning;
+
+function noise(x,freq){
+let v=Math.sin(x*freq*6.28+42)*.5+.5;
+v+=Math.sin(x*freq*2.1+7)*.25;
+return v/1.25;
+}
+
+const MAP_W=130,MAP_H=42;
+
+function initGame(){
+updateDims();
+
+world=[];
+entities=[];
+hp=3;
+score=0;
+selectedBlock='grass';
+gameRunning=true;
+
+document.getElementById('gameover').style.display='none';
+document.getElementById('score').textContent='⛏️ 0';
+
+for(let x=0;x<MAP_W;x++){
+world[x]=[];
+
+const surfY=Math.floor(12+noise(x/MAP_W,1.5)*9);
+
+for(let y=0;y<MAP_H;y++){
+if(y<surfY)world[x][y]='air';
+else if(y===surfY)world[x][y]='grass';
+else if(y<surfY+4)world[x][y]='dirt';
+else world[x][y]='stone';
+}
+
+if(Math.random()<.1){
+const ty=surfY-1;
+
+for(let h=0;h<4;h++){
+if(ty-h>=0)world[x][ty-h]='wood';
+}
+
+if(ty-4>=0)world[x][ty-4]='leaves';
+if(ty-5>=0)world[x][ty-5]='leaves';
+}
+
+if(x>25&&x<35){
+const sy=surfY;
+world[x][sy]='sand';
+if(sy+1<MAP_H)world[x][sy+1]='water';
+}
+}
+
+const startX=8;
+const surfStart=Math.floor(12+noise(startX/MAP_W,1.5)*9);
+
+player={
+x:startX*TS,
+y:(surfStart-2)*TS,
+vx:0,vy:0,
+w:26,h:30,
+onGround:false,
+facing:1,
+frame:0,frameT:0,
+invincible:0
+};
+
+cam={x:0,y:0};
+
+for(let i=0;i<6;i++)spawnEnemy();
+
+updateHUD();
+}
+
+function spawnEnemy(){
+const ex=(25+Math.random()*70)*TS;
+
+entities.push({
+type:'zombie',
+x:ex,y:5*TS,
+vx:-.6,vy:0,
+w:24,h:28,
+hp:2
+});
+}
+
+function isSolid(type){
+return type&&type!=='air'&&type!=='water'&&type!=='leaves';
+}
+
+/* التصادم */
+function resolveCollision(obj){
+
+obj.x+=obj.vx;
+
+for(let cx=Math.floor(obj.x/TS);
+cx<=Math.floor((obj.x+obj.w-1)/TS);cx++){
+
+for(let cy=Math.floor(obj.y/TS);
+cy<=Math.floor((obj.y+obj.h-1)/TS);cy++){
+
+if(!isSolid(world[cx]?.[cy]))continue;
+
+const bx0=cx*TS;
+const bx1=cx*TS+TS;
+
+if(obj.x+obj.w>bx0&&obj.x<bx1&&
+obj.y+obj.h>cy*TS&&obj.y<cy*TS+TS){
+
+if(obj.vx>0)obj.x=bx0-obj.w;
+else obj.x=bx1;
+
+obj.vx=0;
+}
+}
+}
+
+obj.onGround=false;
+obj.y+=obj.vy;
+
+for(let cx=Math.floor(obj.x/TS);
+cx<=Math.floor((obj.x+obj.w-1)/TS);cx++){
+
+for(let cy=Math.floor(obj.y/TS);
+cy<=Math.floor((obj.y+obj.h-1)/TS);cy++){
+
+if(!isSolid(world[cx]?.[cy]))continue;
+
+const by0=cy*TS;
+const by1=cy*TS+TS;
+
+if(obj.x+obj.w>cx*TS&&
+obj.x<cx*TS+TS&&
+obj.y+obj.h>by0&&
+obj.y<by1){
+
+if(obj.vy>0){
+obj.y=by0-obj.h;
+obj.onGround=true;
+}else{
+obj.y=by1;
+}
+
+obj.vy=0;
+}
+}
+}
+}
+
+/* عصا التحكم */
+const joyState={
+active:false,
+dx:0,
+dy:0,
+id:-1,
+ox:0,
+oy:0
+};
+
+const joyArea=document.getElementById('joystick-area');
+const joyKnob=document.getElementById('joystick-knob');
+
+function getJoyCenter(){
+const r=joyArea.getBoundingClientRect();
+
+return{
+x:r.left+r.width/2,
+y:r.top+r.height/2
+};
+}
+
+joyArea.addEventListener('touchstart',e=>{
+e.preventDefault();
+
+const t=e.changedTouches[0];
+
+joyState.active=true;
+joyState.id=t.identifier;
+
+const c=getJoyCenter();
+
+joyState.ox=c.x;
+joyState.oy=c.y;
+
+},{passive:false});
+
+document.addEventListener('touchmove',e=>{
+
+for(let t of e.changedTouches){
+
+if(t.identifier===joyState.id){
+
+const dx=t.clientX-joyState.ox;
+const dy=t.clientY-joyState.oy;
+
+const dist=Math.sqrt(dx*dx+dy*dy);
+const maxR=36;
+
+const cx=dist>maxR?dx/dist*maxR:dx;
+const cy=dist>maxR?dy/dist*maxR:dy;
+
+joyState.dx=cx/maxR;
+joyState.dy=cy/maxR;
+
+joyKnob.style.transform=`translate(${cx}px,${cy}px)`;
+}
+}
+
+},{passive:false});
+
+function releaseJoy(e){
+
+for(let t of e.changedTouches){
+
+if(t.identifier===joyState.id){
+
+joyState.active=false;
+joyState.dx=0;
+joyState.dy=0;
+joyState.id=-1;
+
+joyKnob.style.transform='';
+}
+}
+}
+
+document.addEventListener('touchend',releaseJoy);
+document.addEventListener('touchcancel',releaseJoy);
+
+/* أزرار الحفر والبناء */
+if(window.PointerEvent){
+
+document.getElementById('btn-dig').addEventListener('pointerdown',e=>{
+e.preventDefault();
+digBlock();
+});
+
+document.getElementById('btn-place').addEventListener('pointerdown',e=>{
+e.preventDefault();
+placeBlock();
+});
+
+}else{
+
+document.getElementById('btn-dig').addEventListener('touchstart',e=>{
+e.preventDefault();
+digBlock();
+},{passive:false});
+
+document.getElementById('btn-place').addEventListener('touchstart',e=>{
+e.preventDefault();
+placeBlock();
+},{passive:false});
+
+document.getElementById('btn-dig').addEventListener('click',digBlock);
+document.getElementById('btn-place').addEventListener('click',placeBlock);
+}
+
+/* اختيار البلوكات */
+document.querySelectorAll('.inv-slot').forEach(slot=>{
+
+slot.addEventListener('click',()=>{
+
+document.querySelectorAll('.inv-slot').forEach(s=>{
+s.classList.remove('active');
+});
+
+slot.classList.add('active');
+selectedBlock=slot.dataset.block;
+
+});
+
+});
+
+document.getElementById('btn-restart').addEventListener('click',initGame);
+
+function digBlock(){
+
+if(!gameRunning)return;
+
+const bx=Math.floor((player.x+player.w/2)/TS)+player.facing;
+const by=Math.floor((player.y+player.h/2)/TS);
+
+const type=world[bx]?.[by];
+
+if(type&&type!=='air'&&type!=='water'){
+
+world[bx][by]='air';
+score++;
+
+showMsg('⛏️ حفرت '+(BLOCK_EMOJI[type]||'🌳'));
+
+document.getElementById('score').textContent='⛏️ '+score;
+}
+}
+
+function placeBlock(){
+
+if(!gameRunning)return;
+
+const bx=Math.floor((player.x+player.w/2)/TS)+player.facing;
+const by=Math.floor((player.y+player.h/2)/TS);
+
+if(!world[bx]?.[by]||world[bx][by]==='air'){
+
+world[bx][by]=selectedBlock;
+
+showMsg('🧱 وضعت '+(BLOCK_EMOJI[selectedBlock]||''));
+}
+}
+
+let msgT;
+
+function showMsg(txt){
+
+const el=document.getElementById('msg');
+
+el.textContent=txt;
+el.style.opacity='1';
+
+clearTimeout(msgT);
+
+msgT=setTimeout(()=>{
+el.style.opacity='0';
+},1600);
+}
+
+function updateHUD(){
+
+const hud=document.getElementById('hud');
+
+hud.innerHTML='';
+
+for(let i=0;i<3;i++){
+
+const h=document.createElement('span');
+
+h.className='heart';
+h.textContent=i<hp?'🖤':'❤️';
+
+hud.appendChild(h);
+}
+}
+
+function takeDamage(){
+
+hp--;
+updateHUD();
+
+if(hp<=0){
+
+gameRunning=false;
+
+document.getElementById('final-score').textContent='نقاط: '+score;
+
+document.getElementById('gameover').style.display='flex';
+}
+}
+
+/* تحديث اللعبة */
+function update(){
+
+if(!gameRunning)return;
+
+updateDims();
+
+if(joyState.dx!==0){
+
+player.vx=joyState.dx*3;
+player.facing=joyState.dx>0?1:-1;
+
+}else{
+
+player.vx*=.65;
+}
+
+if(joyState.dy<-.5&&player.onGround){
+player.vy=-9;
+}
+
+player.vy=Math.min(player.vy+.48,15);
+
+resolveCollision(player);
+
+if(player.y>MAP_H*TS+100){
+
+player.y=4*TS;
+takeDamage();
+}
+
+cam.x+=(player.x-W/2-cam.x)*.13;
+cam.y+=(player.y-H/2-cam.y)*.13;
+
+cam.x=Math.max(0,Math.min(cam.x,MAP_W*TS-W));
+cam.y=Math.max(0,Math.min(cam.y,MAP_H*TS-H));
+
+player.frameT++;
+
+if(player.frameT>8){
+
+player.frame=(player.frame+1)%4;
+player.frameT=0;
+}
+
+if(player.invincible>0)player.invincible--;
+
+entities.forEach(e=>{
+
+if(e.type==='zombie'){
+
+const dx=player.x-e.x;
+
+if(Math.abs(dx)<240){
+e.vx=dx>0?.85:-.85;
+}else{
+e.vx=(Math.random()-.5)*.5;
+}
+
+e.vy=Math.min(e.vy+.48,15);
+
+resolveCollision(e);
+
+if(e.onGround&&Math.random()<.01){
+e.vy=-7;
+}
+
+if(Math.abs(dx)<22&&
+Math.abs(player.y-e.y)<32&&
+player.invincible===0){
+
+takeDamage();
+player.invincible=90;
+}
+}
+});
+
+entities=entities.filter(e=>e.hp>0);
+
+if(entities.length<4&&Math.random()<.004){
+spawnEnemy();
+}
+}
+
+/* رسم البلوكات */
+function drawBlock(type,sx,sy){
+
+const C={
+
+grass:['#735e37','#735e37','#5cb85c','#735e37'],
+dirt:['#8B5E3C','#7a5030','#a06840','#6a4020'],
+stone:['#888','#777','#999','#666'],
+wood:['#a0522d','#8B4513','#b8662a','#7a3d10'],
+leaves:['#2d8c2d','#246020','#38a038','#1a5018'],
+water:['#3a7bc8','#2a6ab8','#4a8bd8','#1a5aa8'],
+sand:['#c2a86a','#b09050','#d4ba80','#9a7840']
+
+};
+
+const c=C[type];
+
+if(!c)return;
+
+ctx.fillStyle=c[0];
+ctx.fillRect(sx,sy,TS,TS);
+
+ctx.fillStyle=c[2];
+ctx.fillRect(sx,sy,TS,7);
+
+ctx.fillStyle=c[3];
+ctx.fillRect(sx,sy+TS-5,TS,5);
+
+ctx.strokeStyle='rgba(0,0,0,.18)';
+ctx.lineWidth=.5;
+ctx.strokeRect(sx+.5,sy+.5,TS-1,TS-1);
+}
+
+/* اللاعب */
+function drawPlayer(px,py){
+
+const blink=player.invincible>0&&Math.floor(player.invincible/6)%2===0;
+
+if(blink)return;
+
+ctx.save();
+
+if(player.facing<0){
+
+ctx.translate(px+player.w,0);
+ctx.scale(-1,1);
+px=0;
+}
+
+const legSwing=Math.sin(player.frame*Math.PI/2)*4;
+
+ctx.fillStyle='#5c3d1e';
+ctx.fillRect(px+3,py+22+legSwing,9,8);
+ctx.fillRect(px+14,py+22-legSwing,9,8);
+
+ctx.fillStyle='#c6610c';
+ctx.fillRect(px+2,py+12,22,12);
+
+ctx.fillStyle='#f5c87a';
+ctx.fillRect(px,py+12,6,9);
+ctx.fillRect(px+20,py+12,6,9);
+
+ctx.fillStyle='#f5c87a';
+ctx.fillRect(px+5,py,16,13);
+
+ctx.fillStyle='#4a2f0f';
+ctx.fillRect(px+5,py,16,5);
+
+ctx.fillStyle='#111';
+ctx.fillRect(px+8,py+5,3,3);
+ctx.fillRect(px+15,py+5,3,3);
+
+ctx.fillStyle='#c0392b';
+ctx.fillRect(px+9,py+9,8,2);
+
+ctx.restore();
+}
+
+/* الزومبي */
+function drawZombie(e){
+
+const sx=Math.round(e.x-cam.x);
+const sy=Math.round(e.y-cam.y);
+
+ctx.fillStyle='#1a5c30';
+ctx.fillRect(sx+2,sy,20,13);
+
+ctx.fillStyle='#2d8c4e';
+ctx.fillRect(sx,sy+13,24,11);
+
+ctx.fillStyle='#1a5c30';
+ctx.fillRect(sx-2,sy+13,7,10);
+ctx.fillRect(sx+19,sy+13,7,10);
+ctx.fillRect(sx+4,sy+24,7,7);
+ctx.fillRect(sx+13,sy+24,7,7);
+
+ctx.fillStyle='#ff3333';
+ctx.fillRect(sx+5,sy+3,4,4);
+ctx.fillRect(sx+13,sy+3,4,4);
+}
+
+/* رسم العالم */
+function draw(){
+
+const grad=ctx.createLinearGradient(0,0,0,H);
+
+grad.addColorStop(0,'#1cade8');
+grad.addColorStop(1,'#ffffff');
+
+ctx.fillStyle=grad;
+ctx.fillRect(0,0,W,H);
+
+const sx0=Math.floor(cam.x/TS)-1;
+const sx1=sx0+Math.ceil(W/TS)+3;
+
+const sy0=Math.floor(cam.y/TS)-1;
+const sy1=sy0+Math.ceil(H/TS)+3;
+
+for(let bx=sx0;bx<sx1;bx++){
+
+for(let by=sy0;by<sy1;by++){
+
+const type=world[bx]?.[by];
+
+if(!type||type==='air')continue;
+
+drawBlock(
+type,
+Math.round(bx*TS-cam.x),
+Math.round(by*TS-cam.y)
+);
+
+}
+}
+
+entities.forEach(e=>{
+if(e.type==='zombie')drawZombie(e);
+});
+
+drawPlayer(
+Math.round(player.x-cam.x),
+Math.round(player.y-cam.y)
+);
+}
+
+function loop(){
+
+update();
+draw();
+
+requestAnimationFrame(loop);
+}
+
+initGame();
+loop();
+
+</script>
+</body>
+</html>
